@@ -36,5 +36,3 @@ while True:
 capL.release()
 capR.release()
 cv2.destroyAllWindows()
-
-sdsfb
