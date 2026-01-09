@@ -1,3 +1,4 @@
+# capture pairs
 import cv2, os, time
 
 save_dir = "stereo_pairs"
