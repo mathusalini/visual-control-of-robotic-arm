@@ -7,8 +7,8 @@ import os
 # ----------------------------
 # Paths (EDIT if needed)
 # ----------------------------
-PAIR_DIR = "/home/group36/visual-control-of-robotic-arm/stereo_pairs"
-CALIB_FILE = "/home/group36/Group36/visual-control-of-robotic-arm/stereo_calibration.pkl"
+PAIR_DIR = "/home/group36/Group36/visual-control-of-robotic-arm/stereo_pairs"
+CALIB_FILE = "stereo_calibration.pkl"
 # If your pkl is in the same folder where you run the script, you can use:
 # CALIB_FILE = "stereo_calibration.pkl"
 
@@ -101,4 +101,4 @@ stereo = cv2.StereoSGBM_create(
 disp = stereo.compute(rectL, rectR).astype(np.float32) / 16.0
 
 # Mask invalid disparities
-disp_valid = di_
+disp_valid = disp
