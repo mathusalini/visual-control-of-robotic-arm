@@ -6,7 +6,7 @@ import pickle
 # ----------------------------
 # Chessboard parameters
 # ----------------------------
-chessboard_size = (9, 6)        # inner corners
+chessboard_size = (9, 7)        # inner corners
 square_size = 0.025             # meters (CHANGE if needed)
 
 # ----------------------------
