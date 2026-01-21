@@ -6,7 +6,7 @@ valid_pairs = []     # list of (left_img, right_img)
 
 img_size = None
 
-for left_img, right_img in zip(left_images, right_images):
+for left_img, right_img in zip(left_img, right_img):
 
     imgL = cv2.imread(left_img)
     imgR = cv2.imread(right_img)
