@@ -51,7 +51,7 @@ print("="*60)
 # Try to open cameras (adjust camera indices if needed)
 # Camera indices: 0, 1, 2, etc. depending on your system
 LEFT_CAMERA_INDEX = 0
-RIGHT_CAMERA_INDEX = 1
+RIGHT_CAMERA_INDEX = 2
 
 cap_left = cv2.VideoCapture(LEFT_CAMERA_INDEX)
 cap_right = cv2.VideoCapture(RIGHT_CAMERA_INDEX)
@@ -82,7 +82,7 @@ image_size = (w, h)
 print(f"Camera resolution: {w} x {h}")
 
 # -------------------------------------------------
-# Compute rectification parameters with alpha=1.0
+# Compute rectification parameters with alpha=0
 # -------------------------------------------------
 print("\nComputing rectification parameters...")
 R1, R2, P1, P2, Q, roi_left, roi_right = cv2.stereoRectify(
