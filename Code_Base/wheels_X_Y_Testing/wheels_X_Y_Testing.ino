@@ -20,7 +20,7 @@ const int BL_ENC_A = A0;
 const int BL_ENC_B = A1;
 
 // --- 2. ROBOT SETTINGS (Adjust these later for perfect accuracy) ---
-const float ticks_per_rev = 1400.0; // Typical for these motors
+const float ticks_per_rev = 980.0; // Typical for these motors
 const float wheel_radius = 0.05;    // 50mm radius (100mm wheels)
 
 // --- 3. VARIABLES ---
