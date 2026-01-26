@@ -5,13 +5,13 @@
 
 // --- Pin Definitions (From your Verification) ---
 // Front Left
-int FL_PWM = 2;   int FL_DIR = 3;   
+int FL_PWM = 3;   int FL_DIR = 2;   
 // Front Right
 int FR_PWM = 11;  int FR_DIR = 12;
 // Back Right
 int BR_PWM = 9;   int BR_DIR = 8;
 // Back Left
-int BL_PWM = 7;  int BL_DIR = 10;
+int BL_PWM = 10;  int BL_DIR = 7;
 
 void setup() {
   pinMode(FL_PWM, OUTPUT); pinMode(FL_DIR, OUTPUT);
