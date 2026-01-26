@@ -15,7 +15,7 @@ const int BR_ENC_A = 5;  const int BR_ENC_B = 4;
 
 // TUNING
 // Calibration: Adjusted because 60cm target -> 47.5cm actual
-const double CM_PER_TICK = 0.02536;
+const double CM_PER_TICK = 0.07033;
 double target_speed = 30.0;              // Cruise Speed
 double target_distance = 60.0;           // GOAL: 60 cm
 
