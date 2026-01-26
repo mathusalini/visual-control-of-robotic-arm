@@ -3,11 +3,11 @@
 // 1. MOTOR MUSCLES (Driver Pins)
 // Based on standard 4WD shields or your previous code:
 // FL = Front Left, FR = Front Right, BL = Back Left, BR = Back Right
-const int motorFL_PWM = 9;   // Front Left Speed
-const int motorFL_Dir = 10;  // Front Left Direction (or vice versa depending on wiring)
+const int motorFL_PWM = 3;   // Front Left Speed
+const int motorFL_Dir = 2;  // Front Left Direction (or vice versa depending on wiring)
 
-const int motorFR_PWM = 5;   // Front Right Speed  <-- CONFLICT with Encoder!
-const int motorFR_Dir = 6;   // Front Right Direction
+const int motorFR_PWM = 11;   // Front Right Speed  <-- CONFLICT with Encoder!
+const int motorFR_Dir = 12;   // Front Right Direction
 
 // Assuming standard shield mapping for Back Motors (often duplicates of front or specific pins)
 // If you are using a 4-channel driver, you need 4 more pins. 
@@ -18,20 +18,20 @@ const int motorFR_Dir = 6;   // Front Right Direction
 
 // 2. ENCODER EYES (Sensors)
 // Front Right (FR): Pins 4 & 5
-const int encFR_A = 4;
-// const int encFR_B = 5; // DISABLED: Pin 5 is used for Motor PWM
+const int encFR_A = A5;
+// const int encFR_B = A4; // DISABLED: Pin 5 is used for Motor PWM
 
 // Front Left (FL): Pins A0 & A1
-const int encFL_A = A0;
-const int encFL_B = A1;
+const int encFL_A = A2;
+const int encFL_B = A3;
 
 // Back Right (BR): Pins A4 & A5
-const int encBR_A = A4;
-const int encBR_B = A5;
+const int encBR_A = A5;
+const int encBR_B = A4;
 
 // Back Left (BL): Pins A2 & A3
-const int encBL_A = A2;
-const int encBL_B = A3;
+const int encBL_A = A0;
+const int encBL_B = AA1;
 
 void setup() {
   Serial.begin(9600);
