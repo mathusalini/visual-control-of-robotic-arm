@@ -63,3 +63,74 @@ if __name__ == "__main__":
 
     finally:
         controller.close()
+
+
+
+
+# import serial, time
+
+# PORT = "COM7"
+# BAUD = 9600
+# CH_BASE = 0
+
+# def send(ser, cmd):
+#     ser.write((cmd + "\r").encode("ascii"))
+#     ser.flush()
+#     print("Sent:", cmd)
+
+# ser = serial.Serial(PORT, BAUD, timeout=1)
+# time.sleep(2)
+# print(f"Connected on {PORT} @ {BAUD}")
+
+# last_pw = 1500
+
+# try:
+#     # Go to center slowly
+#     send(ser, f"#{CH_BASE} P1500 T1500")
+#     time.sleep(1.7)
+
+#     # Start with a conservative safe window first
+#     left_min  = 1200
+#     right_max = 1800
+
+#     step = 10       # smaller step = safer
+#     move_time = 600 # slower movement = safer
+
+#     print("\n--- LEFT test (decreasing pulse) ---")
+#     print("Watch the arm. Press Ctrl+C immediately if it strains / hits stop.")
+#     for pw in range(1500, left_min - 1, -step):
+#         last_pw = pw
+#         send(ser, f"#{CH_BASE} P{pw} T{move_time}")
+#         time.sleep((move_time/1000) + 0.1)
+
+#     # Back to center before testing other side
+#     send(ser, f"#{CH_BASE} P1500 T1500")
+#     time.sleep(1.7)
+
+#     print("\n--- RIGHT test (increasing pulse) ---")
+#     print("Watch the arm. Press Ctrl+C immediately if it strains / hits stop.")
+#     for pw in range(1500, right_max + 1, step):
+#         last_pw = pw
+#         send(ser, f"#{CH_BASE} P{pw} T{move_time}")
+#         time.sleep((move_time/1000) + 0.1)
+
+#     print("\nFinished conservative range test safely ✅")
+#     print("If you need more range, expand left_min/right_max slowly (e.g., 1180, 1820).")
+
+# except KeyboardInterrupt:
+#     print(f"\nStopped by you ✅ Last pulse tried: P{last_pw}")
+#     # Stop servo outputs immediately
+#     try:
+#         send(ser, "STOP")
+#     except:
+#         pass
+
+# finally:
+#     # Return to center at the end
+#     try:
+#         send(ser, f"#{CH_BASE} P1500 T1500")
+#         time.sleep(1.7)
+#     except:
+#         pass
+#     ser.close()
+#     print("Closed.")
