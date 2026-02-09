@@ -161,5 +161,36 @@ controller._send("#0 P1500 #1 P1700 #2 P1300 #3 P1500 T2000")
 * `main.py` → Main script
 * `README.md` → This guide
 
----
+flowchart TD
+    A(Start)
+    B(Input: pick_xyz, place_xyz, object_width_cm)
+    C(Go HOME - arm HOME pulses - gripper OPEN)
+    D{Is PICK reachable?}
+    E(Solve IK for PICK)
+    F{IK success?}
+    G(Convert angles to PWM)
+    H(Send PWM via Serial)
+    I(Move arm to PICK)
+    J(Close gripper to object width)
+    K(Lift UP from pick)
+    L{Is PLACE reachable?}
+    M(Solve IK for PLACE)
+    N{IK success?}
+    O(Convert angles to PWM)
+    P(Send PWM via Serial)
+    Q(Move ABOVE PLACE)
+    R(Lower to PLACE)
+    S(Open gripper - release object)
+    T(Lift UP from place)
+    U(Return HOME - gripper OPEN)
+    X(End)
 
+    A --> B --> C --> D
+    D -- No --> U --> X
+    D -- Yes --> E --> F
+    F -- No --> U --> X
+    F -- Yes --> G --> H --> I --> J --> K --> L
+    L -- No --> U --> X
+    L -- Yes --> M --> N
+    N -- No --> U --> X
+    N -- Yes --> O --> P --> Q --> R --> S --> T --> U --> X
