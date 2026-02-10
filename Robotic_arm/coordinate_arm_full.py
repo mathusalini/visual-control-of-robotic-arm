@@ -60,7 +60,7 @@ def clamp(x, a, b):
 
 def angle_to_pwm(angle_deg):
     """Map -90..0..+90 → 500..1500..2500"""
-    a = clamp(float(angle_deg), -90.0, 90.0)
+    a = clamp(angle_deg, -90.0, 90.0)
     if a < 0:
         pwm = PWM_CENTER + (a / 90.0) * (PWM_CENTER - PWM_MIN)
     else:
@@ -68,29 +68,26 @@ def angle_to_pwm(angle_deg):
     return int(round(pwm))
 
 # =========================================================
-# CURRENT PWM (software tracking)
+# SMOOTH SERVO MOVEMENT
 # =========================================================
 current_pwm = {
     JOINTS["base"]: 1500,
     JOINTS["shoulder"]: 1500,
     JOINTS["elbow"]: 1500,
     JOINTS["wrist"]: 1500,
-    JOINTS["gripper"]: 1500,  # unknown at start; home will set it
+    JOINTS["gripper"]: 1500,   # assume start unknown; will go home anyway
 }
 
-# =========================================================
-# SMOOTH SERVO MOVEMENT (one channel)
-# =========================================================
-def move_servo_smooth(ctrl, joint, target_pwm, total_time_ms=5000, step_us=5):
+def move_servo_smooth(ctrl, joint, target_pwm,
+                      total_time_ms=5000, step_us=5):
+
     ch = JOINTS[joint]
     start = current_pwm.get(ch, 1500)
     target = int(target_pwm)
 
     delta = abs(target - start)
     if delta == 0:
-        # Still send one command to be safe (optional)
-        ctrl.send(f"#{ch} P{target} T0")
-        print(f"✅ {joint} already at target ({target})")
+        print(f"✅ {joint} already at target")
         return
 
     steps = max(1, delta // step_us)
@@ -106,14 +103,12 @@ def move_servo_smooth(ctrl, joint, target_pwm, total_time_ms=5000, step_us=5):
 
     current_pwm[ch] = target
 
-# =========================================================
-# HOME (one combined command for all channels)
-# =========================================================
 def go_home(ctrl, home_time_ms=3000):
     """
     HOME:
       base/shoulder/elbow/wrist = 1500 PWM
       gripper = 500 PWM
+    Sends ONE combined command (always works).
     """
     print("\n🏠 Going to HOME position...")
 
@@ -135,7 +130,7 @@ def go_home(ctrl, home_time_ms=3000):
         if not (mn <= pwm <= mx):
             raise ValueError(f"HOME PWM for {joint} unsafe: {pwm}")
 
-    # One SSC-32U command moves all
+    # ✅ One command moves all servos
     cmd = (
         f"#{JOINTS['base']} P{base_pwm} "
         f"#{JOINTS['shoulder']} P{shoulder_pwm} "
@@ -147,7 +142,7 @@ def go_home(ctrl, home_time_ms=3000):
     ctrl.send(cmd)
     time.sleep(home_time_ms / 1000.0)
 
-    # Update tracking
+    # Update known positions
     current_pwm[JOINTS["base"]] = base_pwm
     current_pwm[JOINTS["shoulder"]] = shoulder_pwm
     current_pwm[JOINTS["elbow"]] = elbow_pwm
@@ -160,16 +155,13 @@ def go_home(ctrl, home_time_ms=3000):
 # INVERSE KINEMATICS
 # =========================================================
 def ik_from_xyz(x, y, z, alpha_deg):
-    # Base angle
     base_deg = math.degrees(math.atan2(y, x))
 
-    # j and k
     j = math.sqrt(x*x + y*y)
     k = z
 
     a = math.radians(alpha_deg)
 
-    # Wrist center
     m = j - L3 * math.cos(a)
     n = k - L3 * math.sin(a)
 
@@ -195,12 +187,11 @@ def ik_from_xyz(x, y, z, alpha_deg):
     phi1_deg = math.degrees(phi1)
     theta2_deg = math.degrees(theta2)
 
-    # Your angle convention
     shoulder = phi1_deg - 90.0
     elbow    = -theta2_deg
     wrist    = alpha_deg
 
-    print("\n=== IK RESULT (degrees) ===")
+    print("\n=== IK RESULT ===")
     print(f"Base     : {base_deg:.2f}°")
     print(f"Shoulder : {shoulder:.2f}°")
     print(f"Elbow    : {elbow:.2f}°")
@@ -214,38 +205,13 @@ def ik_from_xyz(x, y, z, alpha_deg):
     }
 
 # =========================================================
-# AUTO MOVE USING IK (base -> shoulder -> elbow -> wrist)
-# =========================================================
-def auto_move_ik(ctrl, ik_angles, total_time_ms=5000, step_us=5):
-    print("▶ AUTO MOVE: base → shoulder → elbow → wrist")
-
-    for j in ("base", "shoulder", "elbow", "wrist"):
-        angle = ik_angles[j]
-        pwm = angle_to_pwm(angle)
-        safe_min, safe_max = PWM_SAFE[j]
-
-        print(f"{j}: {angle:.2f}° → PWM {pwm}")
-
-        if not (safe_min <= pwm <= safe_max):
-            print(f"⛔ {j} PWM out of range [{safe_min},{safe_max}] — skipped")
-            continue
-
-        move_servo_smooth(
-            ctrl,
-            j,
-            pwm,
-            total_time_ms=total_time_ms,
-            step_us=step_us
-        )
-
-# =========================================================
 # MAIN PROGRAM
 # =========================================================
 def main():
     arm = SSC32U("COM7")
 
     try:
-        # Go HOME first
+        # ✅ Go HOME first
         go_home(arm)
 
         print("Enter target position")
@@ -256,28 +222,19 @@ def main():
 
         ik_angles = ik_from_xyz(x, y, z, alpha)
 
-        print("\nControls:")
-        print("  Press Enter  -> AUTO move base→shoulder→elbow→wrist")
-        print("  Type joint   -> base / shoulder / elbow / wrist")
-        print("  Type home    -> go home again")
-        print("  Type exit    -> quit\n")
+        print("\nType joint to move using IK:")
+        print("base / shoulder / elbow / wrist")
+        print("Type 'home' to go home again")
+        print("Type 'exit' to quit\n")
 
         while True:
-            joint = input("Joint (Enter=auto) >>> ").strip().lower()
-
+            joint = input("Joint >>> ").strip().lower()
             if joint == "exit":
                 break
-
             if joint == "home":
                 go_home(arm)
                 continue
 
-            # AUTO MODE: user just presses Enter
-            if joint == "":
-                auto_move_ik(arm, ik_angles, total_time_ms=5000, step_us=5)
-                continue
-
-            # Manual joint mode
             if joint not in ("base", "shoulder", "elbow", "wrist"):
                 print("❌ Invalid joint")
                 continue
@@ -289,7 +246,7 @@ def main():
             print(f"{joint}: {angle:.2f}° → PWM {pwm}")
 
             if not (safe_min <= pwm <= safe_max):
-                print(f"⛔ PWM outside safe range [{safe_min},{safe_max}]")
+                print("⛔ PWM outside safe range")
                 continue
 
             move_servo_smooth(

@@ -13,7 +13,7 @@ class SSC32U:
     def send(self, cmd):
         self.ser.write((cmd + "\r").encode("ascii"))
         self.ser.flush()
-        print("➡️", cmd)
+        # print("➡️", cmd)
 
     def close(self):
         self.ser.close()
@@ -21,62 +21,132 @@ class SSC32U:
 
 
 # =============================
-# Servo configuration
+# Servo channels
 # =============================
 JOINTS = {
-    "base":     {"ch": 0, "amin": -90,  "amax": 90},
-    "shoulder": {"ch": 1, "amin": -120, "amax": 30},
-    "elbow":    {"ch": 2, "amin": -90,  "amax": 90},
-    "wrist":    {"ch": 3, "amin": -90,  "amax": 90},
+    "base": 0,
+    "shoulder": 1,
+    "elbow": 2,
+    "wrist": 3,
 }
 
+# =============================
+# PWM safety limits (HARD)
+# =============================
+PWM_SAFE = {
+    "base":     (500, 2500),
+    "shoulder": (700, 2033),
+    "elbow":    (833, 2000),
+    "wrist":    (500, 2500),
+}
+
+# =============================
+# Global angle mapping
+# =============================
 PWM_MIN = 500
-PWM_MAX = 2500
 PWM_CENTER = 1500
+PWM_MAX = 2500
+
+
+def clamp(x, a, b):
+    return max(a, min(b, x))
+
+
+def angle_to_pwm(angle_deg):
+    """Global rule: -90..0..+90 => 500..1500..2500"""
+    a = clamp(float(angle_deg), -90.0, 90.0)
+
+    if a < 0:
+        pwm = PWM_CENTER + (a / 90.0) * (PWM_CENTER - PWM_MIN)
+    else:
+        pwm = PWM_CENTER + (a / 90.0) * (PWM_MAX - PWM_CENTER)
+
+    return int(round(pwm))
 
 
 # =============================
-# Angle → PWM
+# Smooth movement (step-by-step)
 # =============================
-def angle_to_pwm(angle_deg, amin, amax):
-    angle_deg = max(amin, min(amax, angle_deg))
-    pwm = PWM_MIN + (angle_deg - amin) * (PWM_MAX - PWM_MIN) / (amax - amin)
-    return int(pwm)
+current_pwm = {
+    0: 1500,
+    1: 1500,
+    2: 1500,
+    3: 1500,
+}
+
+
+def move_servo_smooth(ctrl, joint, target_pwm,
+                      total_time_ms=4000, step_us=5):
+    ch = JOINTS[joint]
+    start = current_pwm[ch]
+    target = int(target_pwm)
+
+    delta = abs(target - start)
+    if delta == 0:
+        print("✅ Already at target")
+        return
+
+    steps = max(1, delta // step_us)
+    dt = total_time_ms / steps
+
+    print(f"🐢 Moving {joint} smoothly: {start} → {target} PWM")
+
+    for i in range(1, steps + 1):
+        a = i / steps
+        pwm = int(round(start + a * (target - start)))
+        ctrl.send(f"#{ch} P{pwm} T0")
+        time.sleep(dt / 1000.0)
+
+    current_pwm[ch] = target
 
 
 # =============================
-# Main interactive control
+# MAIN LOOP
 # =============================
 def main():
     arm = SSC32U(port="COM7")
 
     try:
-        print("\nType joint name: base / shoulder / elbow / wrist")
+        print("\nChoose joint: base / shoulder / elbow / wrist")
+        print("Angle range: -90 to +90 (0° = 1500 PWM)")
         print("Type 'exit' to quit\n")
 
         while True:
-            joint = input("Joint: ").strip().lower()
+            joint = input("Joint >>> ").strip().lower()
             if joint == "exit":
                 break
 
             if joint not in JOINTS:
-                print("❌ Invalid joint")
+                print("❌ Invalid joint name")
                 continue
 
             try:
-                angle = float(input(f"Angle for {joint} (deg): "))
+                angle = float(input("Angle (deg) >>> "))
             except ValueError:
                 print("❌ Invalid angle")
                 continue
 
-            j = JOINTS[joint]
-            pwm = angle_to_pwm(angle, j["amin"], j["amax"])
+            mapped_pwm = angle_to_pwm(angle)
+            safe_min, safe_max = PWM_SAFE[joint]
 
-            # move slowly (you can increase T)
-            T_MS = 4000
+            print(f"📐 angle={angle}° → mapped PWM={mapped_pwm}")
 
-            arm.send(f"#{j['ch']} P{pwm} T{T_MS}")
-            time.sleep(T_MS / 1000.0)
+            # SAFETY CHECK
+            if not (safe_min <= mapped_pwm <= safe_max):
+                print(
+                    f"⛔ BLOCKED: {joint} PWM {mapped_pwm} outside "
+                    f"safe range [{safe_min},{safe_max}]"
+                )
+                continue
+
+            # Move smoothly
+            move_servo_smooth(
+                arm,
+                joint,
+                mapped_pwm,
+                total_time_ms=5000,   # slower → increase
+                step_us=5             # smoother → decrease
+            )
 
     finally:
         arm.close()

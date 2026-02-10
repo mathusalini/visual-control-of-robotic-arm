@@ -331,8 +331,8 @@ if __name__ == "__main__":
         
         # Example 2: Pick and place operation
         print("\n--- Example 2: Pick and Place ---")
-        pickup_location = (10, 10, 0)   # (x, y, z) in cm
-        place_location = (10, 10, 2)   # (x, y, z) in cm
+        pickup_location = (10, 10, 10)   # (x, y, z) in cm
+        place_location = (10, 10, 15)   # (x, y, z) in cm
         
         arm.pick_and_place(
             pickup_cm=pickup_location,

@@ -1,240 +1,71 @@
-import numpy as np
-from scipy.optimize import minimize
+import math
 
-# ============================================================================
-# ARM DIMENSIONS (AL5D Specifications)
-# ============================================================================
-BASE_HEIGHT = 6.7          # Height of base rotation point above table (cm)
-SHOULDER_LENGTH = 14.605   # Shoulder to elbow length (cm)
-ELBOW_LENGTH = 18.7325     # Elbow to wrist length (cm)
-WRIST_LENGTH = 8.5725      # Wrist to gripper tip length (cm)
+# Link lengths (cm)
+L1 = 14.605
+L2 = 18.7325
+L3 = 8.5725
 
-# ============================================================================
-# TRANSFORMATION UTILITIES
-# ============================================================================
-def translate(x, y, z):
-    """Create translation matrix"""
-    T = np.eye(4)
-    T[:3, 3] = [x, y, z]
-    return T
-
-def rotate_z(theta):
-    """Rotation around Z-axis (base rotation)"""
-    R = np.eye(4)
-    c, s = np.cos(theta), np.sin(theta)
-    R[0:2, 0:2] = [[c, -s], [s, c]]
-    return R
-
-def rotate_y(theta):
-    """Rotation around Y-axis (shoulder, elbow, wrist)"""
-    R = np.eye(4)
-    c, s = np.cos(theta), np.sin(theta)
-    R[0, 0], R[0, 2], R[2, 0], R[2, 2] = c, s, -s, c
-    return R
-
-
-
-
-
-
-# ============================================================================
-# FORWARD KINEMATICS
-# ============================================================================
-def forward_kinematics(theta):
+def ik_from_jk(j, k, alpha_deg=-68.0):
     """
-    Calculate end-effector position from joint angles
-    
-    theta = [theta1, theta2, theta3, theta4]
-    Returns: [x, y, z] position in cm
-    """
-    theta1, theta2, theta3, theta4 = theta
-    
-    T_base = translate(0, 0, BASE_HEIGHT)
-    T1 = T_base @ rotate_z(theta1)
-    T2 = T1 @ rotate_y(theta2)
-    T3 = T2 @ translate(SHOULDER_LENGTH, 0, 0) @ rotate_y(theta3)
-    T4 = T3 @ translate(ELBOW_LENGTH, 0, 0) @ rotate_y(theta4)
-    T_end = T4 @ translate(WRIST_LENGTH, 0, 0)
-    
-    return T_end[:3, 3]
+    Inputs:
+      j = sqrt(x^2 + y^2)  (horizontal reach, cm)
+      k = z coordinate     (height, cm)
+      alpha_deg = end-effector angle in degrees (like your Desmos 'a')
 
-# ============================================================================
-# INVERSE KINEMATICS
-# ============================================================================
-def ik_objective(theta, target):
-    """Objective function for IK optimization"""
-    eff_pos = forward_kinematics(theta)
-    return np.linalg.norm(eff_pos - target)
-
-def solve_ik(target, initial_guess=[0, -np.pi/4, np.pi/4, 0]):
-    """Solve inverse kinematics with joint constraints"""
-    bounds = [
-        (-np.pi/2, np.pi/2),      # Base: ±90°
-        (-2*np.pi/3, np.pi/6),    # Shoulder: -120° to +30°
-        (-np.pi/2, np.pi/2),      # Elbow: ±90°
-        (-np.pi/2, np.pi/2)       # Wrist: ±90°
-    ]
-    
-    result = minimize(
-        ik_objective,
-        initial_guess,
-        args=(target,),
-        method='L-BFGS-B',
-        bounds=bounds,
-        options={'maxiter': 2000, 'disp': False}
-    )
-    
-    theta = result.x
-    final_pos = forward_kinematics(theta)
-    error = np.linalg.norm(final_pos - target)
-    
-    if error < 0.5:  # 5mm tolerance
-        return theta, error
-    else:
-        return None, error
-
-# ============================================================================
-# MAIN FUNCTION: CALCULATE ANGLES FROM COORDINATES
-# ============================================================================
-def calculate_angles_from_coordinates(x_cm, y_cm, z_cm):
+    Outputs (degrees):
+      shoulder_phi1, elbow_theta2, wrist_phi3
     """
-    Calculate servo angles from target coordinates
-    
-    Input: Target position (x, y, z) in centimeters
-    Output: Joint angles [θ1, θ2, θ3, θ4] in degrees
-    
-    Returns: angles in degrees, or None if unreachable
-    """
-    target = np.array([x_cm, y_cm, z_cm])
-    
-    print(f"\n🎯 Target Coordinates: ({x_cm:.1f}, {y_cm:.1f}, {z_cm:.1f}) cm")
-    
-    # Check if reachable
-    horizontal_dist = np.sqrt(x_cm**2 + y_cm**2)
-    vertical_dist = abs(z_cm - BASE_HEIGHT)
-    total_dist = np.sqrt(horizontal_dist**2 + vertical_dist**2)
-    max_reach = SHOULDER_LENGTH + ELBOW_LENGTH + WRIST_LENGTH
-    
-    if total_dist > max_reach or total_dist < 5.0:
-        print(f"❌ Target NOT reachable! (distance: {total_dist:.1f} cm, max: {max_reach:.1f} cm)")
-        return None
-    
-    # Solve inverse kinematics
-    initial_guess = [0, -np.pi/4, np.pi/4, 0]
-    theta, error = solve_ik(target, initial_guess)
-    
-    if theta is None:
-        print(f"❌ IK failed! Error: {error:.2f} cm")
-        return None
-    
+
+    # Convert alpha to radians for trig
+    a = math.radians(alpha_deg)
+
+    # Wrist-center point (m, n)
+    m = j - L3 * math.cos(a)
+    n = k - L3 * math.sin(a)
+
+    # Distance from shoulder joint to wrist-center
+    l = math.sqrt(m*m + n*n)
+
+    # Reachability check (2-link)
+    if l > (L1 + L2) or l < abs(L1 - L2):
+        raise ValueError(f"Target not reachable: l={l:.3f}, range=[{abs(L1-L2):.3f}, {L1+L2:.3f}]")
+
+    # θ12 = atan(n/m)  (use atan2 for correct quadrant)
+    theta_12 = math.atan2(n, m)
+
+    # θ13 = acos((L2^2 - L1^2 - l^2)/(-2*L1*l))
+    c13 = (L2*L2 - L1*L1 - l*l) / (-2 * L1 * l)
+    c13 = max(-1.0, min(1.0, c13))  # clamp for numeric safety
+    theta_13 = math.acos(c13)
+
+    # φ1 = θ12 + θ13
+    phi1 = theta_12 + theta_13
+
+    # φ2 = acos((l^2 - L2^2 - L1^2)/(-2*L2*L1))
+    c2 = (l*l - L2*L2 - L1*L1) / (-2 * L2 * L1)
+    c2 = max(-1.0, min(1.0, c2))
+    phi2 = math.acos(c2)
+
+    # θ2 = φ1 + φ2 - 180°  (your Desmos)
+    theta2 = phi1 + phi2 - math.pi
+
+    # φ3 = (180° - θ2) + α  (your Desmos)
+    phi3 = (math.pi - theta2) + a
+
     # Convert to degrees
-    angles_deg = np.degrees(theta)
-    
-    # Print results
-    print(f"✅ IK Solved! Position error: {error:.3f} cm")
-    print(f"\n📐 Joint Angles (radians):")
-    print(f"   θ1 (Base):     {theta[0]:+.4f} rad")
-    print(f"   θ2 (Shoulder): {theta[1]:+.4f} rad")
-    print(f"   θ3 (Elbow):    {theta[2]:+.4f} rad")
-    print(f"   θ4 (Wrist):    {theta[3]:+.4f} rad")
-    
-    print(f"\n📐 Joint Angles (degrees):")
-    print(f"   θ1 (Base):     {angles_deg[0]:+.2f}°")
-    print(f"   θ2 (Shoulder): {angles_deg[1]:+.2f}°")
-    print(f"   θ3 (Elbow):    {angles_deg[2]:+.2f}°")
-    print(f"   θ4 (Wrist):    {angles_deg[3]:+.2f}°")
-    
-    # Verify with forward kinematics
-    calculated_pos = forward_kinematics(theta)
-    print(f"\n✔️  Verification (Forward Kinematics):")
-    print(f"   Target:     ({x_cm:.2f}, {y_cm:.2f}, {z_cm:.2f}) cm")
-    print(f"   Calculated: ({calculated_pos[0]:.2f}, {calculated_pos[1]:.2f}, {calculated_pos[2]:.2f}) cm")
-    print(f"   Error:      {error:.3f} cm")
-    
-    return angles_deg
+    shoulder_deg = math.degrees(phi1)
+    elbow_deg    = math.degrees(theta2)
+    wrist_deg    = math.degrees(phi3)
+
+    return shoulder_deg, elbow_deg, wrist_deg
 
 
-# ============================================================================
-# MAIN PROGRAM
-# ============================================================================
 if __name__ == "__main__":
-    print("="*70)
-    print("🤖 KINEMATICS CALCULATOR - Coordinates to Angles")
-    print("="*70)
-    
-    # Example 1: Point forward and up
-    print("\n" + "="*70)
-    print("EXAMPLE 1: Reach 20cm forward, 15cm up")
-    print("="*70)
-    angles = calculate_angles_from_coordinates(20, 0, 15)
-    
-    # Example 2: Point to the left side
-    print("\n" + "="*70)
-    print("EXAMPLE 2: Reach 15cm forward, 15cm left, 10cm up")
-    print("="*70)
-    angles = calculate_angles_from_coordinates(15, 15, 10)
-    
-    # Example 3: Interactive mode
-    print("\n" + "="*70)
-    print("INTERACTIVE MODE")
-    print("="*70)
-    print("\nEnter coordinates to calculate angles")
-    print("Format: x,y,z (in cm)")
-    print("Type 'quit' to exit\n")
-    
-    while True:
-        try:
-            coords = input("Enter coordinates (x,y,z): ").strip()
-            if coords.lower() in ['quit', 'exit', 'q']:
-                break
-            
-            # Parse input
-            x, y, z = map(float, coords.replace('(', '').replace(')', '').split(','))
-            
-            # Calculate angles
-            angles = calculate_angles_from_coordinates(x, y, z)
-            
-            if angles is not None:
-                print("\n✅ Angles calculated successfully!\n")
-            else:
-                print("\n❌ Could not calculate angles\n")
-                
-        except ValueError:
-            print("❌ Invalid format. Use: x,y,z (example: 20,0,15)")
-        except KeyboardInterrupt:
-            print("\n\nExiting...")
-            break
-    
-    print("\n✅ Calculator closed!")
-# ```
+    j = 10
+    k = 20
+    shoulder, elbow, wrist = ik_from_jk(j, k, alpha_deg=-68)
 
-# ---
-
-# ## ✅ **What This Code Does:**
-
-# ### **Input:** Coordinates (x, y, z) in cm
-# ### **Output:** Joint angles in degrees and radians
-
-# ---
-
-# ## 📤 **Example Output:**
-# ```
-# 🎯 Target Coordinates: (20.0, 0.0, 15.0) cm
-# ✅ IK Solved! Position error: 0.001 cm
-
-# 📐 Joint Angles (radians):
-#    θ1 (Base):     +0.0000 rad
-#    θ2 (Shoulder): -0.5236 rad
-#    θ3 (Elbow):    +0.7854 rad
-#    θ4 (Wrist):    -0.2618 rad
-
-# 📐 Joint Angles (degrees):
-#    θ1 (Base):     +0.00°
-#    θ2 (Shoulder): -30.00°
-#    θ3 (Elbow):    +45.00°
-#    θ4 (Wrist):    -15.00°
-
-# ✔️  Verification (Forward Kinematics):
-#    Target:     (20.00, 0.00, 15.00) cm
-#    Calculated: (20.00, 0.00, 15.00) cm
-#    Error:      0.001 cm
+    print(f"j={j}, k={k}, alpha=-68°")
+    print(f"Shoulder (phi1): {shoulder:.4f}°")
+    print(f"Elbow (theta2):   {elbow:.4f}°")
+    print(f"Wrist (phi3):     {wrist:.4f}°")
