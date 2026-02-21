@@ -32,3 +32,20 @@ Conventional robotic manipulators often rely on absolute motion control based on
 3. **Path Planning & Navigation:** The D* Lite algorithm maps a collision-free path for the Nexus base to approach the target.
 4. **Manipulation:** Once in range, the inverse kinematics engine calculates the exact joint angles required for the Lynxmotion arm to execute the pick-and-place task.
 5. **Closed-Loop Feedback:** The system continuously updates its position based on live camera feeds, adjusting to any moving obstacles or shifts in the target's location.
+
+```mermaid
+graph TD
+    A[📸 Perception <br> Dual Webcams & OpenCV] -->|Target & 3D Coords| B[🗺️ Coordinate Transformation <br> Camera Frame to Robot Map]
+    B -->|Localized Target| C[🧭 Path Planning & Navigation <br> D* Lite Algorithm]
+    C -->|Collision-Free Path| D[🦾 Manipulation <br> Inverse Kinematics for Lynxmotion Arm]
+    D -->|Execution| E[🔄 Closed-Loop Feedback <br> Real-Time Visual Updates]
+    
+    %% Feedback Loop
+    E -.->|Continuous Adjustment| A
+    
+    %% Styling
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#bbf,stroke:#333,stroke-width:2px
+    style C fill:#bfb,stroke:#333,stroke-width:2px
+    style D fill:#fbb,stroke:#333,stroke-width:2px
+    style E fill:#eee,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
