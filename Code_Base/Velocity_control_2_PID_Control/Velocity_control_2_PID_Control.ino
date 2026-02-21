@@ -16,6 +16,7 @@ const int BR_ENC_A = 5;  const int BR_ENC_B = 4;
 
 // TUNING
 const double CM_PER_TICK = 31.4 / 980.0;
+//const double CM_PER_TICK = 0.07033;  // <--- YOUR VERIFIED VALUE
 double target_speed = 30.0; 
 float Kp = 6.0; 
 float Ki = 2.0;
@@ -83,7 +84,7 @@ void pollEncoders() {
   // FL
   int curr_fl = digitalRead(FL_ENC_A);
   if (curr_fl != last_fl && curr_fl == HIGH) { 
-    if(digitalRead(FL_ENC_B)) fl_ticks++; else fl_ticks--; 
+    if(digitalRead(FL_ENC_B)) fl_ticks--; else fl_ticks++; 
   }
   last_fl = curr_fl;
   // FR
@@ -95,7 +96,7 @@ void pollEncoders() {
   // BL
   int curr_bl = digitalRead(BL_ENC_A);
   if (curr_bl != last_bl && curr_bl == HIGH) { 
-    if(digitalRead(BL_ENC_B)) bl_ticks++; else bl_ticks--; 
+    if(digitalRead(BL_ENC_B)) bl_ticks--; else bl_ticks++; 
   }
   last_bl = curr_bl;
   // BR

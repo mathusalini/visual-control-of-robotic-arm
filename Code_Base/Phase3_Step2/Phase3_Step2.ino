@@ -18,7 +18,7 @@ const int BR_ENC_A = 5;  const int BR_ENC_B = 4;
 
 // *** CALIBRATION ***
 const double CM_PER_TICK = 0.07033;  // <--- YOUR VERIFIED VALUE
-const double ROBOT_RADIUS_CM = 26.0; // Nexus Standard Radius
+const double ROBOT_RADIUS_CM = 5 ; // Nexus Standard Radius
 
 // *** VARIABLES ***
 volatile long fl_ticks=0, fr_ticks=0, bl_ticks=0, br_ticks=0;
