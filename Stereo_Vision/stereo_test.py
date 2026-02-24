@@ -1,7 +1,7 @@
 import cv2
 
 capL = cv2.VideoCapture(0)   # Camera on usb-...-1
-capR = cv2.VideoCapture(2)   # Camera on usb-...-2
+capR = cv2.VideoCapture(1)   # Camera on usb-...-2
 
 while True:
     retL, frameL = capL.read()
