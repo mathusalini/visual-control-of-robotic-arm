@@ -6,7 +6,7 @@ from collections import deque
 # ===========================
 # CONFIGURATION SETTINGS
 # ===========================
-CALIB_FILE = "stereo_calibration.pkl"
+CALIB_FILE = "stereo_calibration_2.pkl"
 LEFT_CAM_ID = 0
 RIGHT_CAM_ID = 2
 
