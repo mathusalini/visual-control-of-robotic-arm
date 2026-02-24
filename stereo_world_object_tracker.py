@@ -11,7 +11,7 @@ import argparse
 # Paths
 # ----------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PAIR_DIR   = os.path.join(SCRIPT_DIR, "Stereo_pairs_")
+PAIR_DIR   = os.path.join(SCRIPT_DIR, "Stereo_pairs_2")
 CALIB_FILE = os.path.join(SCRIPT_DIR, "stereo_calibration_2.pkl")
 POSE_SAVE  = os.path.join(SCRIPT_DIR, "cam_to_world.npz")
 
@@ -21,9 +21,9 @@ POSE_SAVE  = os.path.join(SCRIPT_DIR, "cam_to_world.npz")
 # ----------------------------
 OBJP_WORLD = np.array([
     [0.00, 0.00, 0.0],   # Marker 1
-    [0.40, 0.00, 0.0],   # Marker 2
-    [0.00, 0.30, 0.0],   # Marker 3
-    [0.40, 0.30, 0.0],   # Marker 4
+    [0.945, 0.00, 0.0],   # Marker 2
+    [0.00, 0.49, 0.0],   # Marker 3
+    [0.594, 0.787, 0.0],   # Marker 4
 ], dtype=np.float64)
 
 # ----------------------------
