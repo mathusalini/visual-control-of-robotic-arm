@@ -10,8 +10,8 @@ import sys
 # -------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-PAIR_DIR = os.path.join(SCRIPT_DIR, "Stereo_pairs_1")
-CALIB_FILE = os.path.join(SCRIPT_DIR, "stereo_calibration.pkl")
+PAIR_DIR = os.path.join(SCRIPT_DIR, "Stereo_pairs_2")
+CALIB_FILE = os.path.join(SCRIPT_DIR, "stereo_calibration_2.pkl")
 
 print("SCRIPT_DIR :", SCRIPT_DIR)
 print("PAIR_DIR   :", PAIR_DIR)
