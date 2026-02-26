@@ -6,9 +6,9 @@ import time
 # ==========================
 # SETTINGS
 # ==========================
-CALIB_FILE = "stereo_calibration.pkl"
+CALIB_FILE = "stereo_calibration_2.pkl"
 LEFT_CAM_ID = 0
-RIGHT_CAM_ID = 1
+RIGHT_CAM_ID = 2
 
 # Force same resolution as you calibrated with (IMPORTANT!)
 FRAME_W = 640
