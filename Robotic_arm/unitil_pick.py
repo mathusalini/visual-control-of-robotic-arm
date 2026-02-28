@@ -75,7 +75,7 @@ current_pwm = {
     JOINTS["shoulder"]: 1500,
     JOINTS["elbow"]: 1500,
     JOINTS["wrist"]: 1500,
-    JOINTS["gripper"]: 1500,  # unknown at start; home will set it
+    JOINTS["gripper"]: 1500,
 }
 
 # =========================================================
@@ -88,7 +88,6 @@ def move_servo_smooth(ctrl, joint, target_pwm, total_time_ms=5000, step_us=5):
 
     delta = abs(target - start)
     if delta == 0:
-        # Still send one command to be safe (optional)
         ctrl.send(f"#{ch} P{target} T0")
         print(f"✅ {joint} already at target ({target})")
         return
@@ -113,7 +112,7 @@ def go_home(ctrl, home_time_ms=3000):
     """
     HOME:
       base/shoulder/elbow/wrist = 1500 PWM
-      gripper = 500 PWM
+      gripper = 1090 PWM (your value)
     """
     print("\n🏠 Going to HOME position...")
 
@@ -123,7 +122,6 @@ def go_home(ctrl, home_time_ms=3000):
     wrist_pwm = 1500
     gripper_pwm = 1090
 
-    # Safety check
     for joint, pwm in {
         "base": base_pwm,
         "shoulder": shoulder_pwm,
@@ -135,7 +133,6 @@ def go_home(ctrl, home_time_ms=3000):
         if not (mn <= pwm <= mx):
             raise ValueError(f"HOME PWM for {joint} unsafe: {pwm}")
 
-    # One SSC-32U command moves all
     cmd = (
         f"#{JOINTS['base']} P{base_pwm} "
         f"#{JOINTS['shoulder']} P{shoulder_pwm} "
@@ -147,7 +144,6 @@ def go_home(ctrl, home_time_ms=3000):
     ctrl.send(cmd)
     time.sleep(home_time_ms / 1000.0)
 
-    # Update tracking
     current_pwm[JOINTS["base"]] = base_pwm
     current_pwm[JOINTS["shoulder"]] = shoulder_pwm
     current_pwm[JOINTS["elbow"]] = elbow_pwm
@@ -157,19 +153,45 @@ def go_home(ctrl, home_time_ms=3000):
     print("✅ HOME reached\n")
 
 # =========================================================
+# Gripper Control Based on Object Width  (ADDED)
+# =========================================================
+def width_to_pwm(width_cm):
+    """
+    Linear mapping example:
+      width >= 3.2 cm  -> 1090 (open)
+      width <= 0 cm    -> 2500 (closed)
+    """
+    width_cm = float(width_cm)
+
+    if width_cm >= 3.2:
+        pwm = 1090
+    elif width_cm <= 0:
+        pwm = 2500
+    else:
+        pwm = int(2500 - ((2500 - 1090) / 3.2) * width_cm)
+
+    # Clamp to safe gripper limits (and general safe)
+    mn, mx = PWM_SAFE["gripper"]
+    pwm = max(mn, min(mx, pwm))
+    return pwm
+
+def move_gripper_width(ctrl, width_cm, total_time_ms=1500, step_us=5):
+    """Smoothly move gripper according to width."""
+    pwm = width_to_pwm(width_cm)
+    print(f"🖐️ Gripper: width {width_cm:.2f} cm → PWM {pwm}")
+    move_servo_smooth(ctrl, "gripper", pwm, total_time_ms=total_time_ms, step_us=step_us)
+
+# =========================================================
 # INVERSE KINEMATICS
 # =========================================================
 def ik_from_xyz(x, y, z, alpha_deg):
-    # Base angle
     base_deg = math.degrees(math.atan2(y, x))
 
-    # j and k
     j = math.sqrt(x*x + y*y)
     k = z
 
     a = math.radians(alpha_deg)
 
-    # Wrist center
     m = j - L3 * math.cos(a)
     n = k - L3 * math.sin(a)
 
@@ -195,7 +217,6 @@ def ik_from_xyz(x, y, z, alpha_deg):
     phi1_deg = math.degrees(phi1)
     theta2_deg = math.degrees(theta2)
 
-    # Your angle convention
     shoulder = phi1_deg - 90.0
     elbow    = -theta2_deg
     wrist    = alpha_deg
@@ -206,12 +227,7 @@ def ik_from_xyz(x, y, z, alpha_deg):
     print(f"Elbow    : {elbow:.2f}°")
     print(f"Wrist    : {wrist:.2f}°")
 
-    return {
-        "base": base_deg,
-        "shoulder": shoulder,
-        "elbow": elbow,
-        "wrist": wrist,
-    }
+    return {"base": base_deg, "shoulder": shoulder, "elbow": elbow, "wrist": wrist}
 
 # =========================================================
 # AUTO MOVE USING IK (base -> shoulder -> elbow -> wrist)
@@ -230,13 +246,7 @@ def auto_move_ik(ctrl, ik_angles, total_time_ms=5000, step_us=5):
             print(f"⛔ {j} PWM out of range [{safe_min},{safe_max}] — skipped")
             continue
 
-        move_servo_smooth(
-            ctrl,
-            j,
-            pwm,
-            total_time_ms=total_time_ms,
-            step_us=step_us
-        )
+        move_servo_smooth(ctrl, j, pwm, total_time_ms=total_time_ms, step_us=step_us)
 
 # =========================================================
 # MAIN PROGRAM
@@ -245,7 +255,6 @@ def main():
     arm = SSC32U("COM7")
 
     try:
-        # Go HOME first
         go_home(arm)
 
         print("Enter target position")
@@ -260,6 +269,7 @@ def main():
         print("  Press Enter  -> AUTO move base→shoulder→elbow→wrist")
         print("  Type joint   -> base / shoulder / elbow / wrist")
         print("  Type home    -> go home again")
+        print("  Type grip    -> enter object width and move gripper")
         print("  Type exit    -> quit\n")
 
         while True:
@@ -272,9 +282,19 @@ def main():
                 go_home(arm)
                 continue
 
-            # AUTO MODE: user just presses Enter
+            # AUTO MODE
             if joint == "":
                 auto_move_ik(arm, ik_angles, total_time_ms=5000, step_us=5)
+
+                # ✅ AFTER reaching target, ask for object width (ADDED)
+                width = float(input("✅ Reached target. Object width (cm) >>> "))
+                move_gripper_width(arm, width, total_time_ms=1500, step_us=5)
+                continue
+
+            # Manual gripper command anytime
+            if joint == "grip":
+                width = float(input("Object width (cm) >>> "))
+                move_gripper_width(arm, width, total_time_ms=1500, step_us=5)
                 continue
 
             # Manual joint mode
@@ -292,13 +312,7 @@ def main():
                 print(f"⛔ PWM outside safe range [{safe_min},{safe_max}]")
                 continue
 
-            move_servo_smooth(
-                arm,
-                joint,
-                pwm,
-                total_time_ms=5000,
-                step_us=5
-            )
+            move_servo_smooth(arm, joint, pwm, total_time_ms=5000, step_us=5)
 
     finally:
         arm.close()

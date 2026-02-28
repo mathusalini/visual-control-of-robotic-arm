@@ -561,7 +561,50 @@ Move the robotic arm smoothly and safely
 👉 The user does not need to control base, shoulder, elbow, and wrist separately.
 
 ---
+✅ Gripper Control Based on Object Width
 
+This program uses inverse kinematics (IK) and PWM conversion to control the gripper of the robotic arm, based on the width of an object.
+
+📄 Python File
+width_map_to_arm.py
+🎯 What This File Does
+
+Takes an object width as input
+
+Maps the width to a PWM value for the gripper
+
+Moves the gripper smoothly to the calculated position
+
+Adjusts the gripper based on object size
+
+🧮 Width to PWM Mapping
+
+The script maps object width (in cm) to PWM signals for the gripper using a linear interpolation method:
+
+Max open position (width = 3.2 cm): PWM = 1090
+
+Fully closed position (width = 0 cm): PWM = 2500
+
+Intermediate positions: Linearly interpolated between 2500 and 1090 PWM
+
+The relationship ensures safe movement and avoids damaging the gripper.
+
+📐 Gripper Control
+
+Once the width is entered, the gripper position is adjusted automatically:
+
+def width_to_pwm(width_cm):
+    if width_cm >= 3.2:
+        pwm = 1090  # Max open position
+    elif width_cm <= 0:
+        pwm = 2500  # Fully closed
+    else:
+        pwm = int(2500 - ((2500 - 1090) / (3.2 - 0)) * (width_cm - 0))
+    
+    pwm = max(500, min(2500, pwm))  # Clamp PWM to safe limits
+    return pwm
+
+---
 
 task-pick
 place

@@ -9,6 +9,9 @@ L1 = 14.605
 L2 = 18.7325
 L3 = 8.5725
 
+# ✅ Wait time after gripping (seconds)
+GRIP_WAIT_SEC = 3.0
+
 # =========================================================
 # SSC-32U CONTROLLER
 # =========================================================
@@ -34,7 +37,7 @@ JOINTS = {
     "shoulder": 1,
     "elbow": 2,
     "wrist": 3,
-    "gripper": 4,   # <-- change if your gripper is not channel 4
+    "gripper": 4,
 }
 
 # =========================================================
@@ -75,7 +78,7 @@ current_pwm = {
     JOINTS["shoulder"]: 1500,
     JOINTS["elbow"]: 1500,
     JOINTS["wrist"]: 1500,
-    JOINTS["gripper"]: 1500,  # unknown at start; home will set it
+    JOINTS["gripper"]: 1500,
 }
 
 # =========================================================
@@ -88,7 +91,6 @@ def move_servo_smooth(ctrl, joint, target_pwm, total_time_ms=5000, step_us=5):
 
     delta = abs(target - start)
     if delta == 0:
-        # Still send one command to be safe (optional)
         ctrl.send(f"#{ch} P{target} T0")
         print(f"✅ {joint} already at target ({target})")
         return
@@ -110,11 +112,6 @@ def move_servo_smooth(ctrl, joint, target_pwm, total_time_ms=5000, step_us=5):
 # HOME (one combined command for all channels)
 # =========================================================
 def go_home(ctrl, home_time_ms=3000):
-    """
-    HOME:
-      base/shoulder/elbow/wrist = 1500 PWM
-      gripper = 500 PWM
-    """
     print("\n🏠 Going to HOME position...")
 
     base_pwm = 1500
@@ -123,7 +120,6 @@ def go_home(ctrl, home_time_ms=3000):
     wrist_pwm = 1500
     gripper_pwm = 1090
 
-    # Safety check
     for joint, pwm in {
         "base": base_pwm,
         "shoulder": shoulder_pwm,
@@ -135,7 +131,6 @@ def go_home(ctrl, home_time_ms=3000):
         if not (mn <= pwm <= mx):
             raise ValueError(f"HOME PWM for {joint} unsafe: {pwm}")
 
-    # One SSC-32U command moves all
     cmd = (
         f"#{JOINTS['base']} P{base_pwm} "
         f"#{JOINTS['shoulder']} P{shoulder_pwm} "
@@ -147,7 +142,6 @@ def go_home(ctrl, home_time_ms=3000):
     ctrl.send(cmd)
     time.sleep(home_time_ms / 1000.0)
 
-    # Update tracking
     current_pwm[JOINTS["base"]] = base_pwm
     current_pwm[JOINTS["shoulder"]] = shoulder_pwm
     current_pwm[JOINTS["elbow"]] = elbow_pwm
@@ -157,19 +151,76 @@ def go_home(ctrl, home_time_ms=3000):
     print("✅ HOME reached\n")
 
 # =========================================================
+# PICK_HOME (keep gripper holding)
+# =========================================================
+def go_pick_home(ctrl, home_time_ms=3000):
+    print("\n🏠 Going to PICK_HOME (keep gripper holding)...")
+
+    base_pwm = 1500
+    shoulder_pwm = 1500
+    elbow_pwm = 1500
+    wrist_pwm = 1500
+
+    for joint, pwm in {
+        "base": base_pwm,
+        "shoulder": shoulder_pwm,
+        "elbow": elbow_pwm,
+        "wrist": wrist_pwm,
+    }.items():
+        mn, mx = PWM_SAFE[joint]
+        if not (mn <= pwm <= mx):
+            raise ValueError(f"PICK_HOME PWM for {joint} unsafe: {pwm}")
+
+    cmd = (
+        f"#{JOINTS['base']} P{base_pwm} "
+        f"#{JOINTS['shoulder']} P{shoulder_pwm} "
+        f"#{JOINTS['elbow']} P{elbow_pwm} "
+        f"#{JOINTS['wrist']} P{wrist_pwm} "
+        f"T{home_time_ms}"
+    )
+    ctrl.send(cmd)
+    time.sleep(home_time_ms / 1000.0)
+
+    current_pwm[JOINTS["base"]] = base_pwm
+    current_pwm[JOINTS["shoulder"]] = shoulder_pwm
+    current_pwm[JOINTS["elbow"]] = elbow_pwm
+    current_pwm[JOINTS["wrist"]] = wrist_pwm
+
+    print("✅ PICK_HOME reached (gripper unchanged)\n")
+
+# =========================================================
+# Gripper Control Based on Object Width
+# =========================================================
+def width_to_pwm(width_cm):
+    width_cm = float(width_cm)
+
+    if width_cm >= 3.2:
+        pwm = 1090
+    elif width_cm <= 0:
+        pwm = 2500
+    else:
+        pwm = int(2500 - ((2500 - 1090) / 3.2) * width_cm)
+
+    mn, mx = PWM_SAFE["gripper"]
+    pwm = max(mn, min(mx, pwm))
+    return pwm
+
+def move_gripper_width(ctrl, width_cm, total_time_ms=1500, step_us=5):
+    pwm = width_to_pwm(width_cm)
+    print(f"🖐️ Gripper: width {width_cm:.2f} cm → PWM {pwm}")
+    move_servo_smooth(ctrl, "gripper", pwm, total_time_ms=total_time_ms, step_us=step_us)
+
+# =========================================================
 # INVERSE KINEMATICS
 # =========================================================
 def ik_from_xyz(x, y, z, alpha_deg):
-    # Base angle
     base_deg = math.degrees(math.atan2(y, x))
 
-    # j and k
     j = math.sqrt(x*x + y*y)
     k = z
 
     a = math.radians(alpha_deg)
 
-    # Wrist center
     m = j - L3 * math.cos(a)
     n = k - L3 * math.sin(a)
 
@@ -195,7 +246,6 @@ def ik_from_xyz(x, y, z, alpha_deg):
     phi1_deg = math.degrees(phi1)
     theta2_deg = math.degrees(theta2)
 
-    # Your angle convention
     shoulder = phi1_deg - 90.0
     elbow    = -theta2_deg
     wrist    = alpha_deg
@@ -206,12 +256,7 @@ def ik_from_xyz(x, y, z, alpha_deg):
     print(f"Elbow    : {elbow:.2f}°")
     print(f"Wrist    : {wrist:.2f}°")
 
-    return {
-        "base": base_deg,
-        "shoulder": shoulder,
-        "elbow": elbow,
-        "wrist": wrist,
-    }
+    return {"base": base_deg, "shoulder": shoulder, "elbow": elbow, "wrist": wrist}
 
 # =========================================================
 # AUTO MOVE USING IK (base -> shoulder -> elbow -> wrist)
@@ -230,13 +275,7 @@ def auto_move_ik(ctrl, ik_angles, total_time_ms=5000, step_us=5):
             print(f"⛔ {j} PWM out of range [{safe_min},{safe_max}] — skipped")
             continue
 
-        move_servo_smooth(
-            ctrl,
-            j,
-            pwm,
-            total_time_ms=total_time_ms,
-            step_us=step_us
-        )
+        move_servo_smooth(ctrl, j, pwm, total_time_ms=total_time_ms, step_us=step_us)
 
 # =========================================================
 # MAIN PROGRAM
@@ -245,7 +284,6 @@ def main():
     arm = SSC32U("COM7")
 
     try:
-        # Go HOME first
         go_home(arm)
 
         print("Enter target position")
@@ -257,48 +295,60 @@ def main():
         ik_angles = ik_from_xyz(x, y, z, alpha)
 
         print("\nControls:")
-        print("  Press Enter  -> AUTO move base→shoulder→elbow→wrist")
-        print("  Type joint   -> base / shoulder / elbow / wrist")
-        print("  Type home    -> go home again")
-        print("  Type exit    -> quit\n")
+        print("  Press Enter   -> AUTO move + grip + wait + pick_home")
+        print("  Type joint    -> base / shoulder / elbow / wrist")
+        print("  Type home     -> go home (resets gripper to 1090)")
+        print("  Type pick_home-> go pick_home (keeps gripper holding)")
+        print("  Type grip     -> enter object width and move gripper")
+        print("  Type exit     -> quit\n")
 
         while True:
-            joint = input("Joint (Enter=auto) >>> ").strip().lower()
+            cmd = input("Command (Enter=auto) >>> ").strip().lower()
 
-            if joint == "exit":
+            if cmd == "exit":
                 break
 
-            if joint == "home":
+            if cmd == "home":
                 go_home(arm)
                 continue
 
-            # AUTO MODE: user just presses Enter
-            if joint == "":
+            if cmd == "pick_home":
+                go_pick_home(arm)
+                continue
+
+            # AUTO: move to target -> ask width -> grip -> wait -> pick_home
+            if cmd == "":
                 auto_move_ik(arm, ik_angles, total_time_ms=5000, step_us=5)
+
+                width = float(input("✅ Reached target. Object width (cm) >>> "))
+                move_gripper_width(arm, width, total_time_ms=1500, step_us=5)
+
+                print(f"⏳ Waiting {GRIP_WAIT_SEC:.1f}s to stabilize grip...")
+                time.sleep(GRIP_WAIT_SEC)
+
+                go_pick_home(arm, home_time_ms=3000)
                 continue
 
-            # Manual joint mode
-            if joint not in ("base", "shoulder", "elbow", "wrist"):
-                print("❌ Invalid joint")
+            if cmd == "grip":
+                width = float(input("Object width (cm) >>> "))
+                move_gripper_width(arm, width, total_time_ms=1500, step_us=5)
                 continue
 
-            angle = ik_angles[joint]
+            if cmd not in ("base", "shoulder", "elbow", "wrist"):
+                print("❌ Invalid command")
+                continue
+
+            angle = ik_angles[cmd]
             pwm = angle_to_pwm(angle)
-            safe_min, safe_max = PWM_SAFE[joint]
+            safe_min, safe_max = PWM_SAFE[cmd]
 
-            print(f"{joint}: {angle:.2f}° → PWM {pwm}")
+            print(f"{cmd}: {angle:.2f}° → PWM {pwm}")
 
             if not (safe_min <= pwm <= safe_max):
                 print(f"⛔ PWM outside safe range [{safe_min},{safe_max}]")
                 continue
 
-            move_servo_smooth(
-                arm,
-                joint,
-                pwm,
-                total_time_ms=5000,
-                step_us=5
-            )
+            move_servo_smooth(arm, cmd, pwm, total_time_ms=5000, step_us=5)
 
     finally:
         arm.close()
